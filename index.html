@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ระบบออกแบบสายการผลิตเสื้อผ้าแบบ Blueprint Mobile V8 (วินาที/ตัว & Smooth Pan)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-canvas: #0b0f19;
+            --bg-node: #1e293b;
+            --bg-node-header: #334155;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #38bdf8;
+            --accent-active: #fbbf24;
+            --danger: #ef4444;
+            --success: #10b981;
+            --grid-color: rgba(56, 189, 248, 0.04);
+            --border-node: #475569;
+        }
+
+        * {
+            box-sizing: border-box;
+            font-family: 'Sarabun', sans-serif;
+            margin: 0;
+            padding: 0;
+            touch-action: manipulation;
+        }
+
+        body, html {
+            height: 100%;
+            overflow: hidden;
+            background: var(--bg-canvas);
+            color: var(--text-main);
+        }
+
+        /* --- แผงควบคุมด้านบน (Header Settings) --- */
+        header {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            background: rgba(30, 41, 59, 0.95);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            padding: 10px 14px;
+            gap: 10px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        }
+
+        @media (min-width: 768px) {
+            header {
+                flex-direction: row;
+                align-items: center;
+                padding: 0 20px;
+                height: 75px;
+            }
+        }
+
+        .brand-section h1 {
+            font-size: 15px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .brand-section p {
+            font-size: 11px;
+            color: var(--accent);
+        }
+
+        .global-settings {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            background: rgba(15, 23, 42, 0.6);
+            padding: 6px 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.05);
+            width: 100%;
+        }
+
+        @media (min-width: 768px) {
+            .global-settings {
+                width: auto;
+                margin-left: auto;
+                gap: 12px;
+            }
+        }
+
+        .meta-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            flex: 1 1 auto;
+        }
+
+        .meta-group label {
+            font-weight: 500;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        .meta-group input {
+            background: #0f172a;
+            border: 1px solid var(--border-node);
+            color: var(--accent);
+            padding: 5px;
+            width: 100%;
+            max-width: 65px;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: 700;
+            outline: none;
+        }
+
+        /* --- ตัวเลือกโหมดทำงานบนมือถือ (Mobile Mode Controller) --- */
+        .mode-container {
+            display: flex;
+            background: #0f172a;
+            padding: 3px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            width: 100%;
+        }
+
+        @media (min-width: 768px) {
+            .mode-container {
+                width: auto;
+            }
+        }
+
+        .mode-btn {
+            flex: 1;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            white-space: nowrap;
+            transition: all 0.2s ease;
+        }
+
+        .mode-btn.active {
+            background: var(--accent);
+            color: #000;
+        }
+
+        /* --- พื้นที่แสดง Blueprint Canvas (รองรับ GPU Acceleration) --- */
+        #canvas-wrapper {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+            cursor: grab;
+            touch-action: none; /* คุมด้วย PointerEvents ทั้งหมดป้องกันการตีกันบนเบราว์เซอร์มือถือ */
+        }
+
+        #canvas-wrapper.mode-panning {
+            cursor: grabbing;
+        }
+
+        #canvas {
+            width: 3000px;
+            height: 2500px;
+            position: absolute;
+            top: 0; left: 0;
+            background-color: var(--bg-canvas);
+            background-image: 
+                linear-gradient(var(--grid-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+            background-size: 40px 40px;
+            transform-origin: 0 0;
+            will-change: transform; /* แจ้งเตือนเบราว์เซอร์ให้ดึง GPU มาช่วยคำนวณความลื่น */
+        }
+
+        .svg-layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* --- แผ่นผังงานขั้นตอน (Blueprint Nodes) --- */
+        .node {
+            position: absolute;
+            width: 270px;
+            background: var(--bg-node);
+            border-radius: 12px;
+            border: 1px solid var(--border-node);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            z-index: 2;
+            user-select: none;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .node-header {
+            background: var(--bg-node-header);
+            padding: 10px 12px;
+            border-radius: 11px 11px 0 0;
+            font-size: 13px;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .node.moving .node-header {
+            background: #475569;
+        }
+
+        .node-content {
+            padding: 10px;
+            font-size: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .workers-section-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .btn-add-worker {
+            background: rgba(56, 189, 248, 0.15);
+            color: var(--accent);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            padding: 2px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+
+        .workers-list {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            max-height: 140px;
+            overflow-y: auto;
+        }
+
+        .worker-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(15, 23, 42, 0.5);
+            padding: 5px 8px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.02);
+        }
+
+        /* ช่องป้อนเวลาแบบวินาที (วินาที/ตัว) */
+        .worker-time-input {
+            width: 80px;
+            background: #0f172a;
+            border: 1px solid #475569;
+            color: #fff;
+            padding: 4px;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        
+        .worker-unit-label {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .btn-del-worker {
+            background: none;
+            border: none;
+            color: #64748b;
+            cursor: pointer;
+            margin-left: auto;
+            padding: 2px 6px;
+            font-size: 12px;
+        }
+
+        .station-summary {
+            margin-top: 2px;
+            padding-top: 6px;
+            border-top: 1px dashed rgba(255,255,255,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .node-ct-badge {
+            background: #0f172a;
+            color: var(--accent);
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 11px;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            width: 100%;
+            text-align: center;
+        }
+
+        .node-ct-badge.bottleneck-active {
+            color: #fff;
+            border-color: var(--danger);
+            background: var(--danger);
+            animation: blink 0.8s infinite alternate;
+        }
+
+        @keyframes blink {
+            from { box-shadow: 0 0 4px rgba(239, 68, 68, 0.5); }
+            to { box-shadow: 0 0 14px rgba(239, 68, 68, 0.9); }
+        }
+
+        /* จุดต่อเส้นขยายใหญ่ขึ้นเพื่อสัมผัสบนมือถือได้อย่างแม่นยำ */
+        .node-input, .node-output {
+            position: absolute;
+            width: 28px;
+            height: 28px;
+            background: #475569;
+            border-radius: 50%;
+            border: 5px solid var(--bg-node);
+            cursor: pointer;
+            z-index: 10;
+        }
+        
+        .node-input { left: -14px; top: 10px; }
+        .node-output { right: -14px; top: 10px; }
+
+        .node-output.port-selected-source {
+            background: var(--accent-active) !important;
+            box-shadow: 0 0 12px var(--accent-active);
+            transform: scale(1.15);
+        }
+
+        .node.shelf {
+            border: 2px dashed var(--success);
+            width: 180px;
+        }
+        .node.shelf .node-header {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--success);
+        }
+
+        /* --- แผงวิเคราะห์ผลลัพธ์ย้ายมาอยู่ด้านล่างสไตล์ Mobile Panel --- */
+        #analysis-panel {
+            position: fixed;
+            left: 0; right: 0; bottom: 0;
+            background: rgba(22, 30, 49, 0.96);
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding: 12px 14px;
+            z-index: 200;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 -10px 35px rgba(0,0,0,0.6);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 45%;
+            overflow-y: auto;
+        }
+
+        @media (min-width: 992px) {
+            #analysis-panel {
+                top: 100px; right: 20px; left: auto; bottom: auto;
+                width: 330px; max-height: 80%;
+                border: 1px solid rgba(255,255,255,0.1);
+                border-radius: 14px;
+                padding: 18px;
+            }
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+
+        @media (min-width: 992px) {
+            .kpi-grid {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+        }
+
+        .kpi-block {
+            background: rgba(15, 23, 42, 0.6);
+            padding: 8px 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.03);
+        }
+
+        .kpi-title {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .kpi-val {
+            font-size: 13px;
+            font-weight: 700;
+            margin-top: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .btn-calc {
+            width: 100%;
+            padding: 10px;
+            background: linear-gradient(135deg, #38bdf8, #0284c7);
+            border: none;
+            color: #0f172a;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        /* แถบเครื่องมือควบคุมมุมมองด่วนลอยตัว (Floating View Navigations) */
+        .view-controls {
+            position: fixed;
+            right: 14px;
+            bottom: 50%;
+            transform: translateY(50%);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 150;
+        }
+
+        @media (min-width: 992px) {
+            .view-controls {
+                bottom: 20px; left: 20px; right: auto; transform: none;
+                flex-direction: row;
+            }
+        }
+
+        .control-btn {
+            width: 44px;
+            height: 44px;
+            background: rgba(30, 41, 59, 0.9);
+            border: 1px solid #475569;
+            color: #fff;
+            border-radius: 50%;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            backdrop-filter: blur(8px);
+        }
+
+        .control-btn:active {
+            background: var(--accent);
+            color: #000;
+        }
+
+        .btn-reset-layout {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: var(--danger);
+            padding: 4px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- แผงหัวเครื่องมือ -->
+    <header id="app-header">
+        <div class="brand-section">
+            <h1>📐 ระบบวิเคราะห์สายผลิต Blueprint (V8)</h1>
+            <p>⚡ จับเวลารายคนเป็น "วินาที/ตัว" | อัปเกรดระบบเลื่อนหน้าจอลื่นไหลพิเศษ</p>
+        </div>
+        
+        <!-- แถบเลือกโหมดสลับการทำงานในมือถือเพื่อให้ควบคุมง่ายสุดๆ -->
+        <div class="mode-container">
+            <button class="mode-btn active" id="mode-pan-btn" onclick="setAppMode('pan')">✋ โหมดเลื่อนจอ</button>
+            <button class="mode-btn" id="mode-edit-btn" onclick="setAppMode('edit')">🛠️ โหมดแก้ไข/ต่อเส้น</button>
+        </div>
+
+        <div class="global-settings">
+            <div class="meta-group">
+                <label>📋 SAM กลาง (นาที):</label>
+                <input type="number" id="global-sam" value="3.29" step="0.01" onchange="runBlueprintBalancing()">
+            </div>
+            <div class="meta-group">
+                <label>⏱️ ทำงาน (ชม.):</label>
+                <input type="number" id="target-hours" value="9" onchange="runBlueprintBalancing()">
+            </div>
+            <div class="meta-group">
+                <label>🎯 ประสิทธิภาพ (%):</label>
+                <input type="number" id="target-eff" value="100" min="1" max="100" onchange="runBlueprintBalancing()">
+            </div>
+            <button class="btn-reset-layout" onclick="resetToDefaultWorkflow()">🔄 รีเซ็ตบอร์ด</button>
+        </div>
+    </header>
+
+    <!-- พื้นที่ทำงาน Canvas ตารางออกแบบยืดหยุ่น -->
+    <div id="canvas-wrapper" class="mode-panning">
+        <div id="canvas">
+            <svg class="svg-layer" id="svg-blueprint-wires"></svg>
+        </div>
+    </div>
+
+    <!-- ปุ่มควบคุมมุมมองลอยตัวสำหรับมือถือ สั่งซูมเข้า-ออก ได้ดั่งใจไม่ต้องง้อนิ้วถ่าง -->
+    <div class="view-controls">
+        <button class="control-btn" onclick="zoomCanvas(0.1)" title="ซูมเข้า">➕</button>
+        <button class="control-btn" onclick="zoomCanvas(-0.1)" title="ซูมออก">➖</button>
+        <button class="control-btn" onclick="resetCanvasView()" title="รีเซ็ตมุมมอง" style="font-size:12px;">🏠</button>
+    </div>
+
+    <!-- ศูนย์ควบคุมประมวลผลและการคำนวณด้านล่าง -->
+    <div id="analysis-panel">
+        <div class="kpi-grid">
+            <div class="kpi-block" style="border-color: rgba(239, 68, 68, 0.35);">
+                <div class="kpi-title" style="color:var(--danger)">🚨 ขั้นตอนคอขวด (Bottleneck)</div>
+                <div id="kpi-bottleneck" class="kpi-val" style="color:var(--danger); font-size:11px;">-</div>
+            </div>
+            <div class="kpi-block">
+                <div class="kpi-title">📊 ความสมดุลไลน์ (Balance Eff.)</div>
+                <div id="kpi-balance-eff" class="kpi-val" style="color: var(--accent); font-size:14px;">0.0%</div>
+            </div>
+            <div class="kpi-block">
+                <div class="kpi-title">⏱️ เวลารวมกระบวนการ (Lead Time)</div>
+                <div id="kpi-leadtime" class="kpi-val">0.00 นาที</div>
+            </div>
+            <div class="kpi-block" style="background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.25);">
+                <div class="kpi-title" style="color: var(--success);">🎯 กำลังผลิตรวมตามเป้าหมาย</div>
+                <div id="kpi-output" class="kpi-val" style="color: var(--success); font-size: 14px;">0 ตัว / วัน</div>
+            </div>
+        </div>
+        <button class="btn-calc" onclick="runBlueprintBalancing()">✨ ประมวลผลและอัปเดตข้อมูล</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const svgLayer = document.getElementById('svg-blueprint-wires');
+        const canvasWrapper = document.getElementById('canvas-wrapper');
+        const appHeader = document.getElementById('app-header');
+
+        let nodesData = [];
+        let connections = [];
+        
+        // --- ⚙️ ตัวแปรคุมมุมมองแบบ GPU Matrix (ลื่นไหลขั้นสุดบนมือถือ) ---
+        let appMode = 'pan'; // 'pan' หรือ 'edit'
+        let isPanning = false;
+        let panX = 30, panY = 110;
+        let startX = 0, startY = 0;
+        let canvasScale = 0.9; // ซูมเริ่มต้นกำลังพอดีสายตา
+
+        let draggingNodeId = null;
+        let nodeDragOffsetX = 0, nodeDragOffsetY = 0;
+        let selectedSourcePortNodeId = null;
+
+        // รายการขั้นตอนการผลิตหลัก 10 ขั้นตอน (แปลงค่าเวลาเริ่มต้นจากนาทีเป็น "วินาทีต่อตัว" เรียบร้อย)
+        const baseProductionSteps = [
+            { id: "step-2", name: "1. เย็บต่อผ้าขอบเอว+ย้ำ", initialWorkersInSeconds: [24, 25] },
+            { id: "step-3", name: "2. พังริมผ้าซับเป้าหน้า", initialWorkersInSeconds: [18, 19] },
+            { id: "step-4", name: "3. พังต่อเป้าหลัง(เข้าถ้ำ)", initialWorkersInSeconds: [30, 31, 29] },
+            { id: "step-5", name: "4. กลึงซับเป้า 2 จุด", initialWorkersInSeconds: [21, 21] },
+            { id: "step-6", name: "5. ลาร้อยยางวงขา 2 ข้าง+สเปค", initialWorkersInSeconds: [36, 35, 37, 36] },
+            { id: "step-7", name: "6. พังต่อข้างขวา+ซ้าย", initialWorkersInSeconds: [27, 28, 26] },
+            { id: "step-8", name: "7. พังต่อขอบเอวรอบ", initialWorkersInSeconds: [30, 31, 29, 31] },
+            { id: "step-9", name: "8. ลาทับหน้าขอบเอว", initialWorkersInSeconds: [21, 22] },
+            { id: "step-10", name: "9. แท็คข้าง 2 จุด+เก็บหัวด้าย", initialWorkersInSeconds: [9] },
+            { id: "step-11", name: "10. ตัดเศษด้ายทั้งตัว", initialWorkersInSeconds: [6] }
+        ];
+
+        // ฟังก์ชันสลับโหมดควบคุมเพื่อความง่ายสูงสุดในโทรศัพท์
+        function setAppMode(mode) {
+            appMode = mode;
+            document.getElementById('mode-pan-btn').classList.toggle('active', mode === 'pan');
+            document.getElementById('mode-edit-btn').classList.toggle('active', mode === 'edit');
+            
+            if (mode === 'pan') {
+                canvasWrapper.className = "mode-panning";
+                // ยกเลิกสถานะพอร์ตที่ค้างไว้
+                if (selectedSourcePortNodeId) {
+                    const srcPort = document.getElementById(`output-port-${selectedSourcePortNodeId}`);
+                    if (srcPort) srcPort.classList.remove('port-selected-source');
+                    selectedSourcePortNodeId = null;
+                }
+            } else {
+                canvasWrapper.className = "";
+            }
+        }
+
+        // ฟังก์ชันซูมเข้าซูมออกสำหรับหน้าจอมือถือแบบคลิก
+        function zoomCanvas(amount) {
+            canvasScale = Math.max(0.4, Math.min(1.5, canvasScale + amount));
+            updateCanvasTransform();
+        }
+
+        function resetCanvasView() {
+            panX = 20;
+            panY = appHeader.offsetHeight + 15;
+            canvasScale = 0.85;
+            updateCanvasTransform();
+        }
+
+        // ฟังก์ชันเริ่มต้นขบวนงานบนหน้ากระดาน
+        function initBlueprintWorkflow() {
+            canvas.querySelectorAll('.node').forEach(n => n.remove());
+            nodesData = [];
+            connections = [];
+            selectedSourcePortNodeId = null;
+
+            resetCanvasView();
+
+            // 1. วางจุดเริ่มต้น: คลังปล่อยงาน
+            createNodeOnCanvas("shelf-start", "📦 คลังปล่อยงาน (Stock)", 30, 150, true, []);
+
+            // 2. จัดวางตำแหน่งแบบตาราง Grid สองแถวคู่ ขนานกันไปทางขวาเพื่อให้เลื่อนดูถนัดตา
+            baseProductionSteps.forEach((step, index) => {
+                const col = index % 2;
+                const row = Math.floor(index / 2);
+                
+                const posX = 260 + (col * 310);
+                const posY = 30 + (row * 240);
+
+                createNodeOnCanvas(step.id, step.name, posX, posY, false, step.initialWorkersInSeconds);
+            });
+
+            renderAllWires();
+            runBlueprintBalancing();
+        }
+
+        function createNodeOnCanvas(id, name, x, y, isShelf = false, workerTimes = []) {
+            const nodeEl = document.createElement('div');
+            nodeEl.className = `node ${isShelf ? 'shelf' : ''}`;
+            nodeEl.id = id;
+            nodeEl.style.left = x + 'px';
+            nodeEl.style.top = y + 'px';
+
+            let innerHTML = `
+                <div class="node-header" id="header-${id}">
+                    <span>${name}</span>
+                </div>
+                <div class="node-content">
+            `;
+
+            if (isShelf) {
+                innerHTML += `<p style="text-align:center; color:var(--success); font-weight:bold; padding: 12px 0; font-size:13px;">✨ สต็อกพร้อมปล่อยงาน</p>`;
+            } else {
+                innerHTML += `
+                    <div class="workers-section-title">
+                        <span>👥 ช่างเย็บประจำจุด</span>
+                        <button class="btn-add-worker" onclick="addWorkerToNode('${id}')">+ เพิ่มคน</button>
+                    </div>
+                    <div class="workers-list" id="workers-list-${id}"></div>
+                    <div class="station-summary">
+                        <div class="node-ct-badge" id="ct-badge-${id}">CT: 0.0 วิ (0.00 น.)</div>
+                    </div>
+                `;
+            }
+
+            innerHTML += `
+                </div>
+                ${isShelf ? '' : `<div class="node-input" id="input-port-${id}" data-node-id="${id}"></div>`}
+                <div class="node-output" id="output-port-${id}" data-node-id="${id}"></div>
+            `;
+
+            nodeEl.innerHTML = innerHTML;
+            canvas.appendChild(nodeEl);
+
+            // บันทึกสถานะพนักงาน (เวลาถูกบันทึกและประมวลผลตรงๆ เป็น "วินาที")
+            nodesData.push({
+                id: id,
+                name: name,
+                isShelf: isShelf,
+                workers: workerTimes.map((sec, idx) => ({ id: Date.now() + Math.random(), name: `คนงาน ${idx+1}`, time: sec }))
+            });
+
+            // ผูกระบบจัดย้ายตำแหน่งการ์ด (เฉพาะโหมดแก้ไข)
+            const headerEl = nodeEl.querySelector('.node-header');
+            headerEl.addEventListener('pointerdown', (e) => {
+                if (appMode !== 'edit' || e.target.tagName === 'BUTTON') return;
+                e.stopPropagation();
+                
+                draggingNodeId = id;
+                nodeEl.classList.add('moving');
+                nodeEl.style.zIndex = 999;
+
+                const rect = nodeEl.getBoundingClientRect();
+                nodeDragOffsetX = (e.clientX - rect.left) / canvasScale;
+                nodeDragOffsetY = (e.clientY - rect.top) / canvasScale;
+            });
+
+            // ระบบแตะเลือกจุดเพื่อสร้างเส้นเชื่อมโยง (ไม่ต้องลากนิ้วค้าง)
+            const outputPort = nodeEl.querySelector('.node-output');
+            outputPort.addEventListener('pointerdown', (e) => {
+                e.stopPropagation();
+                if (appMode !== 'edit') {
+                    alert("⚠️ โปรดเปลี่ยนเป็น '🛠️ โหมดแก้ไข/ต่อเส้น' ที่ด้านบนก่อนเชื่อมกระบวนงาน");
+                    return;
+                }
+                
+                if (selectedSourcePortNodeId) {
+                    const oldPort = document.getElementById(`output-port-${selectedSourcePortNodeId}`);
+                    if (oldPort) oldPort.classList.remove('port-selected-source');
+                }
+
+                selectedSourcePortNodeId = id;
+                outputPort.classList.add('port-selected-source');
+            });
+
+            if (!isShelf) {
+                const inputPort = nodeEl.querySelector('.node-input');
+                inputPort.addEventListener('pointerdown', (e) => {
+                    e.stopPropagation();
+                    if (appMode !== 'edit') return;
+                    
+                    if (selectedSourcePortNodeId && selectedSourcePortNodeId !== id) {
+                        const exists = connections.some(c => c.from === selectedSourcePortNodeId && c.to === id);
+                        if (!exists) {
+                            connections.push({ from: selectedSourcePortNodeId, to: id });
+                        }
+                        
+                        const srcPort = document.getElementById(`output-port-${selectedSourcePortNodeId}`);
+                        if (srcPort) srcPort.classList.remove('port-selected-source');
+                        selectedSourcePortNodeId = null;
+                        
+                        runBlueprintBalancing();
+                    }
+                });
+                renderWorkersUI(id);
+            }
+        }
+
+        function renderWorkersUI(nodeId) {
+            const nodeData = nodesData.find(n => n.id === nodeId);
+            if (!nodeData) return;
+
+            const container = document.getElementById(`workers-list-${nodeId}`);
+            if(!container) return;
+            container.innerHTML = '';
+
+            nodeData.workers.forEach((worker, index) => {
+                const row = document.createElement('div');
+                row.className = 'worker-item';
+                row.innerHTML = `
+                    <span style="color:var(--text-muted); font-weight:600;">#${index + 1}</span>
+                    <input type="number" class="worker-time-input" value="${worker.time}" step="1" min="1" 
+                        onchange="updateWorkerTime('${nodeId}', ${worker.id}, this.value)">
+                    <span class="worker-unit-label">วิ/ตัว</span>
+                    <button class="btn-del-worker" onclick="deleteWorkerFromNode('${nodeId}', ${worker.id})">✖</button>
+                `;
+                container.appendChild(row);
+            });
+
+            calculateLocalStationCT(nodeId);
+        }
+
+        function addWorkerToNode(nodeId) {
+            const nodeData = nodesData.find(n => n.id === nodeId);
+            if (!nodeData) return;
+
+            let defaultTime = 25;
+            if (nodeData.workers.length > 0) {
+                defaultTime = nodeData.workers[nodeData.workers.length - 1].time;
+            }
+
+            nodeData.workers.push({
+                id: Date.now() + Math.random(),
+                name: `คนงาน ${nodeData.workers.length + 1}`,
+                time: defaultTime
+            });
+
+            renderWorkersUI(nodeId);
+            runBlueprintBalancing();
+        }
+
+        function deleteWorkerFromNode(nodeId, workerId) {
+            const nodeData = nodesData.find(n => n.id === nodeId);
+            if (!nodeData) return;
+
+            if (nodeData.workers.length <= 1) {
+                alert("จำเป็นต้องมีพนักงานปฏิบัติงานอย่างน้อย 1 คน");
+                return;
+            }
+
+            nodeData.workers = nodeData.workers.filter(w => w.id !== workerId);
+            renderWorkersUI(nodeId);
+            runBlueprintBalancing();
+        }
+
+        function updateWorkerTime(nodeId, workerId, newVal) {
+            const nodeData = nodesData.find(n => n.id === nodeId);
+            if (!nodeData) return;
+
+            const worker = nodeData.workers.find(w => w.id === workerId);
+            if (worker) {
+                let parsed = parseInt(newVal);
+                if (isNaN(parsed) || parsed <= 0) parsed = 1;
+                worker.time = parsed;
+            }
+
+            calculateLocalStationCT(nodeId);
+            runBlueprintBalancing();
+        }
+
+        // คำนวณขีดความสามารถสถานี (ป้อนเป็นวินาที แปลงผลลัพธ์เป็นนาทีเพื่อเช็ค Balance)
+        function calculateLocalStationCT(nodeId) {
+            const nodeData = nodesData.find(n => n.id === nodeId);
+            if (!nodeData || nodeData.isShelf) return 0;
+
+            let sumCapacityPerSecond = 0;
+            nodeData.workers.forEach(w => {
+                if (w.time > 0) sumCapacityPerSecond += (1 / w.time);
+            });
+
+            // ค่า CT จริงของจุดประมวลผล (หน่วย: วินาที)
+            const effectiveCTSeconds = sumCapacityPerSecond > 0 ? (1 / sumCapacityPerSecond) : 0;
+            const effectiveCTMinutes = effectiveCTSeconds / 60;
+
+            const badge = document.getElementById(`ct-badge-${nodeId}`);
+            if (badge) {
+                badge.innerText = `CT: ${effectiveCTSeconds.toFixed(1)} วิ (${effectiveCTMinutes.toFixed(2)} น.)`;
+            }
+
+            return effectiveCTMinutes; // ส่งคืนค่านำไปคำนวณโครงสร้างสายผลิตหลัก
+        }
+
+        // --- 🛠️ วาดเส้นเชื่อมโยงกระบวนการผลิต ---
+        function renderAllWires() {
+            svgLayer.innerHTML = '';
+            connections.forEach(conn => {
+                const elA = document.getElementById(conn.from);
+                const elB = document.getElementById(conn.to);
+                if (!elA || !elB) return;
+
+                const x1 = elA.offsetLeft + elA.offsetWidth;
+                const y1 = elA.offsetTop + 24;
+                const x2 = elB.offsetLeft;
+                const y2 = elB.offsetTop + 24;
+
+                const cpX = x1 + (x2 - x1) / 2;
+                const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                path.setAttribute("d", `M ${x1} ${y1} C ${cpX} ${y1} ${cpX} ${y2} ${x2} ${y2}`);
+                path.setAttribute("stroke", "#38bdf8");
+                path.setAttribute("stroke-width", "4");
+                path.setAttribute("fill", "none");
+                path.style.pointerEvents = "stroke";
+                path.style.cursor = "pointer";
+                
+                path.addEventListener('pointerdown', (e) => {
+                    e.stopPropagation();
+                    if (appMode !== 'edit') return;
+                    if(confirm("ต้องการลบเส้นเชื่อมงานนี้ออกใช่ไหม?")) {
+                        connections = connections.filter(c => c !== conn);
+                        runBlueprintBalancing();
+                    }
+                });
+
+                svgLayer.appendChild(path);
+            });
+        }
+
+        // --- 📱 ระบบจัดการสัมผัสหน้าจอแบบลื่นไหลและเสถียรพิเศษ (Super-Smooth Pointer Handling) ---
+        canvasWrapper.addEventListener('pointerdown', (e) => {
+            // เลี่ยงผลกระทบถ้าคลิกโดนแผงหรือปุ่มควบคุมภายนอก
+            if (e.target.closest('header') || e.target.closest('#analysis-panel') || e.target.closest('.view-controls') || e.target.closest('.node-content')) return;
+
+            if (appMode === 'pan' || (!draggingNodeId && e.target === canvasWrapper || e.target === canvas || e.target === svgLayer)) {
+                // เริ่มต้นเปิดโหมดกวาดเลื่อนหน้าจอฉากหลัง (Smooth Canvas Panning)
+                isPanning = true;
+                startX = e.clientX - panX;
+                startY = e.clientY - panY;
+                canvasWrapper.setPointerCapture(e.pointerId);
+            }
+        });
+
+        canvasWrapper.addEventListener('pointermove', (e) => {
+            if (draggingNodeId && appMode === 'edit') {
+                // จัดการขยับการ์ดตามพิกัดนิ้วลาก
+                const nodeEl = document.getElementById(draggingNodeId);
+                if (nodeEl) {
+                    const rect = canvas.getBoundingClientRect();
+                    let x = ((e.clientX - rect.left) / canvasScale) - nodeDragOffsetX;
+                    let y = ((e.clientY - rect.top) / canvasScale) - nodeDragOffsetY;
+
+                    if(x < 0) x = 0;
+                    if(y < 0) y = 0;
+
+                    nodeEl.style.left = x + 'px';
+                    nodeEl.style.top = y + 'px';
+                    renderAllWires();
+                }
+            } else if (isPanning) {
+                // ประมวลผลเลื่อนตำแหน่งหน้ากระดาน
+                panX = e.clientX - startX;
+                panY = e.clientY - startY;
+                updateCanvasTransform();
+            }
+        });
+
+        canvasWrapper.addEventListener('pointerup', (e) => {
+            if (draggingNodeId) {
+                const nodeEl = document.getElementById(draggingNodeId);
+                if (nodeEl) nodeEl.classList.remove('moving');
+                draggingNodeId = null;
+            }
+            if (isPanning) {
+                isPanning = false;
+                canvasWrapper.releasePointerCapture(e.pointerId);
+            }
+        });
+
+        function updateCanvasTransform() {
+            // ใช้ translate3d ร่วมกับ scale เพื่อสั่งงานระดับฮาร์ดแวร์ GPU ให้เฟรมเรตไหลลื่น ไม่หน่วงมือ
+            canvas.style.transform = `translate3d(${panX}px, ${panY}px, 0) scale(${canvasScale})`;
+        }
+
+        // --- 🤖 กลไกสมองกลคำนวณสายผลิตเสื้อผ้า (Line Balancing Core Engine) ---
+        function runBlueprintBalancing() {
+            let visited = new Set();
+            let queue = ["shelf-start"];
+            let activeSequenceIds = [];
+
+            while (queue.length > 0) {
+                let currentId = queue.shift();
+                if (visited.has(currentId)) continue;
+                visited.add(currentId);
+
+                if (currentId !== "shelf-start") {
+                    activeSequenceIds.push(currentId);
+                }
+
+                const nextNodes = connections.filter(c => c.from === currentId).map(c => c.to);
+                queue.push(...nextNodes);
+            }
+
+            document.querySelectorAll('.node-ct-badge').forEach(b => b.classList.remove('bottleneck-active'));
+            renderAllWires();
+
+            if (activeSequenceIds.length === 0) {
+                document.getElementById('kpi-bottleneck').innerText = "รอเชื่อมเส้นขบวนงาน...";
+                document.getElementById('kpi-balance-eff').innerText = "0.0%";
+                document.getElementById('kpi-leadtime').innerText = "0.00 นาที";
+                document.getElementById('kpi-output').innerText = "0 ตัว / วัน";
+                return;
+            }
+
+            let totalSAMInFlow = 0;
+            let maxStationCTMinutes = 0;
+            let bottleneckNodeId = null;
+            let bottleneckNodeName = "";
+
+            activeSequenceIds.forEach(id => {
+                const nodeData = nodesData.find(n => n.id === id);
+                if (!nodeData) return;
+
+                // รวมเวลาช่างทุกคนประจำจุดเพื่อแปลงกลับเป็น SAM นาทีเฉลี่ยสำหรับตรวจสอบประสิทธิภาพโครงสร้างหลัก
+                let nodeSumSeconds = 0;
+                nodeData.workers.forEach(w => { nodeSumSeconds += w.time; });
+                const avgNodeSAMMinutes = nodeData.workers.length > 0 ? ((nodeSumSeconds / nodeData.workers.length) / 60) : 0;
+                totalSAMInFlow += avgNodeSAMMinutes;
+
+                // เช็คความเร็วคอขวดสูงสุด (หน่วย: นาที)
+                const currentStationCTMinutes = calculateLocalStationCT(id);
+                if (currentStationCTMinutes > maxStationCTMinutes) {
+                    maxStationCTMinutes = currentStationCTMinutes;
+                    bottleneckNodeId = id;
+                    bottleneckNodeName = nodeData.name;
+                }
+            });
+
+            if (bottleneckNodeId) {
+                const alertBadge = document.getElementById(`ct-badge-${bottleneckNodeId}`);
+                if (alertBadge) alertBadge.classList.add('bottleneck-active');
+            }
+
+            const activeStationCount = activeSequenceIds.length;
+            const balancingEfficiency = maxStationCTMinutes > 0 ? ((totalSAMInFlow / (activeStationCount * maxStationCTMinutes)) * 100) : 0;
+
+            const targetHours = parseFloat(document.getElementById('target-hours').value) || 9;
+            const targetEffPct = parseFloat(document.getElementById('target-eff').value) || 100;
+            const dailyWorkingMinutes = targetHours * 60;
+            const potentialDailyOutput = maxStationCTMinutes > 0 ? Math.floor((dailyWorkingMinutes / maxStationCTMinutes) * (targetEffPct / 100)) : 0;
+
+            const cleanBtlName = bottleneckNodeName ? bottleneckNodeName.substring(3) : "-";
+            const maxStationCTSeconds = maxStationCTMinutes * 60;
+
+            document.getElementById('kpi-bottleneck').innerText = bottleneckNodeName ? `${cleanBtlName} (${maxStationCTSeconds.toFixed(1)} วิ)` : "-";
+            document.getElementById('kpi-balance-eff').innerText = `${balancingEfficiency.toFixed(1)}%`;
+            document.getElementById('kpi-leadtime').innerText = `${(totalSAMInFlow).toFixed(2)} นาที`;
+            document.getElementById('kpi-output').innerText = `${potentialDailyOutput.toLocaleString()} ตัว/วัน`;
+        }
+
+        function resetToDefaultWorkflow() {
+            if(confirm("ต้องการรีเซ็ตบอร์ด จัดเรียงผังและล้างเส้นทั้งหมดสำหรับมือถือใหม่ใช่ไหม?")) {
+                initBlueprintWorkflow();
+                setAppMode('pan');
+            }
+        }
+
+        window.onload = function() {
+            initBlueprintWorkflow();
+        };
+    </script>
+</body>
+</html>
