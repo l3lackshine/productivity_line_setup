@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ระบบออกแบบสายการผลิตเสื้อผ้าแบบ Blueprint Mobile V8 (วินาที/ตัว & Smooth Pan)</title>
+    <title>ระบบออกแบบสายการผลิตเสื้อผ้าแบบ Blueprint Mobile V9 (Auto-Save State)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -69,7 +69,7 @@
 
         .brand-section p {
             font-size: 11px;
-            color: var(--accent);
+            color: var(--success);
         }
 
         .global-settings {
@@ -118,7 +118,7 @@
             outline: none;
         }
 
-        /* --- ตัวเลือกโหมดทำงานบนมือถือ (Mobile Mode Controller) --- */
+        /* --- ตัวเลือกโหมดทำงานบนมือถือ --- */
         .mode-container {
             display: flex;
             background: #0f172a;
@@ -157,14 +157,14 @@
             color: #000;
         }
 
-        /* --- พื้นที่แสดง Blueprint Canvas (รองรับ GPU Acceleration) --- */
+        /* --- พื้นที่แสดง Blueprint Canvas --- */
         #canvas-wrapper {
             width: 100vw;
             height: 100vh;
             overflow: hidden;
             position: relative;
             cursor: grab;
-            touch-action: none; /* คุมด้วย PointerEvents ทั้งหมดป้องกันการตีกันบนเบราว์เซอร์มือถือ */
+            touch-action: none;
         }
 
         #canvas-wrapper.mode-panning {
@@ -182,7 +182,7 @@
                 linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
             background-size: 40px 40px;
             transform-origin: 0 0;
-            will-change: transform; /* แจ้งเตือนเบราว์เซอร์ให้ดึง GPU มาช่วยคำนวณความลื่น */
+            will-change: transform;
         }
 
         .svg-layer {
@@ -269,7 +269,6 @@
             border: 1px solid rgba(255,255,255,0.02);
         }
 
-        /* ช่องป้อนเวลาแบบวินาที (วินาที/ตัว) */
         .worker-time-input {
             width: 80px;
             background: #0f172a;
@@ -330,7 +329,7 @@
             to { box-shadow: 0 0 14px rgba(239, 68, 68, 0.9); }
         }
 
-        /* จุดต่อเส้นขยายใหญ่ขึ้นเพื่อสัมผัสบนมือถือได้อย่างแม่นยำ */
+        /* จุดต่อเส้นสัมผัส */
         .node-input, .node-output {
             position: absolute;
             width: 28px;
@@ -435,7 +434,7 @@
             font-size: 13px;
         }
 
-        /* แถบเครื่องมือควบคุมมุมมองด่วนลอยตัว (Floating View Navigations) */
+        /* ปุ่มควบคุมมุมมองด่วนลอยตัว */
         .view-controls {
             position: fixed;
             right: 14px;
@@ -493,11 +492,10 @@
     <!-- แผงหัวเครื่องมือ -->
     <header id="app-header">
         <div class="brand-section">
-            <h1>📐 ระบบวิเคราะห์สายผลิต Blueprint (V8)</h1>
-            <p>⚡ จับเวลารายคนเป็น "วินาที/ตัว" | อัปเกรดระบบเลื่อนหน้าจอลื่นไหลพิเศษ</p>
+            <h1>📐 ระบบวิเคราะห์สายผลิต Blueprint (V9)</h1>
+            <p>💾 ระบบเก็บข้อมูลถาวรในเครื่อง (Auto-Save) รีโหลดหน้าจอข้อมูลไม่หาย!</p>
         </div>
         
-        <!-- แถบเลือกโหมดสลับการทำงานในมือถือเพื่อให้ควบคุมง่ายสุดๆ -->
         <div class="mode-container">
             <button class="mode-btn active" id="mode-pan-btn" onclick="setAppMode('pan')">✋ โหมดเลื่อนจอ</button>
             <button class="mode-btn" id="mode-edit-btn" onclick="setAppMode('edit')">🛠️ โหมดแก้ไข/ต่อเส้น</button>
@@ -520,14 +518,14 @@
         </div>
     </header>
 
-    <!-- พื้นที่ทำงาน Canvas ตารางออกแบบยืดหยุ่น -->
+    <!-- พื้นที่ทำงาน Canvas -->
     <div id="canvas-wrapper" class="mode-panning">
         <div id="canvas">
             <svg class="svg-layer" id="svg-blueprint-wires"></svg>
         </div>
     </div>
 
-    <!-- ปุ่มควบคุมมุมมองลอยตัวสำหรับมือถือ สั่งซูมเข้า-ออก ได้ดั่งใจไม่ต้องง้อนิ้วถ่าง -->
+    <!-- ปุ่มควบคุมมุมมองลอยตัว -->
     <div class="view-controls">
         <button class="control-btn" onclick="zoomCanvas(0.1)" title="ซูมเข้า">➕</button>
         <button class="control-btn" onclick="zoomCanvas(-0.1)" title="ซูมออก">➖</button>
@@ -566,18 +564,21 @@
         let nodesData = [];
         let connections = [];
         
-        // --- ⚙️ ตัวแปรคุมมุมมองแบบ GPU Matrix (ลื่นไหลขั้นสุดบนมือถือ) ---
-        let appMode = 'pan'; // 'pan' หรือ 'edit'
+        // --- ตัวแปรคุมมุมมอง ---
+        let appMode = 'pan'; 
         let isPanning = false;
-        let panX = 30, panY = 110;
+        let panX = 20;
+        let panY = 110;
         let startX = 0, startY = 0;
-        let canvasScale = 0.9; // ซูมเริ่มต้นกำลังพอดีสายตา
+        let canvasScale = 0.85; 
 
         let draggingNodeId = null;
         let nodeDragOffsetX = 0, nodeDragOffsetY = 0;
         let selectedSourcePortNodeId = null;
 
-        // รายการขั้นตอนการผลิตหลัก 10 ขั้นตอน (แปลงค่าเวลาเริ่มต้นจากนาทีเป็น "วินาทีต่อตัว" เรียบร้อย)
+        const STORAGE_KEY = 'garment_blueprint_v9_state';
+
+        // โครงสร้างเริ่มต้นกรณีไม่มีข้อมูลเซฟไว้ (จับเวลาเป็นวินาที)
         const baseProductionSteps = [
             { id: "step-2", name: "1. เย็บต่อผ้าขอบเอว+ย้ำ", initialWorkersInSeconds: [24, 25] },
             { id: "step-3", name: "2. พังริมผ้าซับเป้าหน้า", initialWorkersInSeconds: [18, 19] },
@@ -591,7 +592,6 @@
             { id: "step-11", name: "10. ตัดเศษด้ายทั้งตัว", initialWorkersInSeconds: [6] }
         ];
 
-        // ฟังก์ชันสลับโหมดควบคุมเพื่อความง่ายสูงสุดในโทรศัพท์
         function setAppMode(mode) {
             appMode = mode;
             document.getElementById('mode-pan-btn').classList.toggle('active', mode === 'pan');
@@ -599,7 +599,6 @@
             
             if (mode === 'pan') {
                 canvasWrapper.className = "mode-panning";
-                // ยกเลิกสถานะพอร์ตที่ค้างไว้
                 if (selectedSourcePortNodeId) {
                     const srcPort = document.getElementById(`output-port-${selectedSourcePortNodeId}`);
                     if (srcPort) srcPort.classList.remove('port-selected-source');
@@ -610,10 +609,10 @@
             }
         }
 
-        // ฟังก์ชันซูมเข้าซูมออกสำหรับหน้าจอมือถือแบบคลิก
         function zoomCanvas(amount) {
             canvasScale = Math.max(0.4, Math.min(1.5, canvasScale + amount));
             updateCanvasTransform();
+            saveBlueprintState();
         }
 
         function resetCanvasView() {
@@ -621,88 +620,144 @@
             panY = appHeader.offsetHeight + 15;
             canvasScale = 0.85;
             updateCanvasTransform();
+            saveBlueprintState();
         }
 
-        // ฟังก์ชันเริ่มต้นขบวนงานบนหน้ากระดาน
-        function initBlueprintWorkflow() {
+        // --- 💾 ฟังก์ชันระบบจัดเก็บข้อมูลลง LocalStorage (Auto-Save) ---
+        function saveBlueprintState() {
+            const state = {
+                nodesData: nodesData,
+                connections: connections,
+                globalSam: document.getElementById('global-sam').value,
+                targetHours: document.getElementById('target-hours').value,
+                targetEff: document.getElementById('target-eff').value,
+                panX: panX,
+                panY: panY,
+                canvasScale: canvasScale
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        }
+
+        function loadBlueprintState() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (!saved) return false;
+            try {
+                const state = JSON.parse(saved);
+                nodesData = state.nodesData || [];
+                connections = state.connections || [];
+                
+                if(state.globalSam) document.getElementById('global-sam').value = state.globalSam;
+                if(state.targetHours) document.getElementById('target-hours').value = state.targetHours;
+                if(state.targetEff) document.getElementById('target-eff').value = state.targetEff;
+                
+                panX = state.panX !== undefined ? state.panX : 20;
+                panY = state.panY !== undefined ? state.panY : 110;
+                canvasScale = state.canvasScale !== undefined ? state.canvasScale : 0.85;
+                return true;
+            } catch (e) {
+                console.error("โหลดข้อมูลเซฟผิดพลาด", e);
+                return false;
+            }
+        }
+
+        // --- เริ่มต้นสร้างหรือโหลดขบวนงาน ---
+        function initBlueprintWorkflow(forceReset = false) {
             canvas.querySelectorAll('.node').forEach(n => n.remove());
-            nodesData = [];
-            connections = [];
             selectedSourcePortNodeId = null;
 
-            resetCanvasView();
+            let hasSavedState = false;
+            if (!forceReset) {
+                hasSavedState = loadBlueprintState();
+            }
 
-            // 1. วางจุดเริ่มต้น: คลังปล่อยงาน
-            createNodeOnCanvas("shelf-start", "📦 คลังปล่อยงาน (Stock)", 30, 150, true, []);
+            if (hasSavedState) {
+                // เรนเดอร์การ์ดทั้งหมดจากดาต้าเบสที่เซฟไว้
+                nodesData.forEach(node => {
+                    renderNodeDOM(node);
+                });
+                updateCanvasTransform();
+            } else {
+                // สร้างผังเริ่มต้นใหม่
+                nodesData = [];
+                connections = [];
+                resetCanvasView();
 
-            // 2. จัดวางตำแหน่งแบบตาราง Grid สองแถวคู่ ขนานกันไปทางขวาเพื่อให้เลื่อนดูถนัดตา
-            baseProductionSteps.forEach((step, index) => {
-                const col = index % 2;
-                const row = Math.floor(index / 2);
+                // 1. คลังปล่อยงาน
+                nodesData.push({ id: "shelf-start", name: "📦 คลังปล่อยงาน (Stock)", isShelf: true, x: 30, y: 150, workers: [] });
                 
-                const posX = 260 + (col * 310);
-                const posY = 30 + (row * 240);
+                // 2. 10 ขั้นตอนขบวนหลัก
+                baseProductionSteps.forEach((step, index) => {
+                    const col = index % 2;
+                    const row = Math.floor(index / 2);
+                    const posX = 260 + (col * 310);
+                    const posY = 30 + (row * 240);
+                    
+                    nodesData.push({
+                        id: step.id,
+                        name: step.name,
+                        isShelf: false,
+                        x: posX,
+                        y: posY,
+                        workers: step.initialWorkersInSeconds.map((sec, idx) => ({ id: Date.now() + Math.random(), name: `คนงาน ${idx+1}`, time: sec }))
+                    });
+                });
 
-                createNodeOnCanvas(step.id, step.name, posX, posY, false, step.initialWorkersInSeconds);
-            });
+                nodesData.forEach(node => {
+                    renderNodeDOM(node);
+                });
+                saveBlueprintState();
+            }
 
             renderAllWires();
             runBlueprintBalancing();
         }
 
-        function createNodeOnCanvas(id, name, x, y, isShelf = false, workerTimes = []) {
+        // เรนเดอร์และสร้าง Event Control ให้กับการ์ดขั้นตอน
+        function renderNodeDOM(node) {
             const nodeEl = document.createElement('div');
-            nodeEl.className = `node ${isShelf ? 'shelf' : ''}`;
-            nodeEl.id = id;
-            nodeEl.style.left = x + 'px';
-            nodeEl.style.top = y + 'px';
+            nodeEl.className = `node ${node.isShelf ? 'shelf' : ''}`;
+            nodeEl.id = node.id;
+            nodeEl.style.left = node.x + 'px';
+            nodeEl.style.top = node.y + 'px';
 
             let innerHTML = `
-                <div class="node-header" id="header-${id}">
-                    <span>${name}</span>
+                <div class="node-header" id="header-${node.id}">
+                    <span>${node.name}</span>
                 </div>
                 <div class="node-content">
             `;
 
-            if (isShelf) {
+            if (node.isShelf) {
                 innerHTML += `<p style="text-align:center; color:var(--success); font-weight:bold; padding: 12px 0; font-size:13px;">✨ สต็อกพร้อมปล่อยงาน</p>`;
             } else {
                 innerHTML += `
                     <div class="workers-section-title">
                         <span>👥 ช่างเย็บประจำจุด</span>
-                        <button class="btn-add-worker" onclick="addWorkerToNode('${id}')">+ เพิ่มคน</button>
+                        <button class="btn-add-worker" onclick="addWorkerToNode('${node.id}')">+ เพิ่มคน</button>
                     </div>
-                    <div class="workers-list" id="workers-list-${id}"></div>
+                    <div class="workers-list" id="workers-list-${node.id}"></div>
                     <div class="station-summary">
-                        <div class="node-ct-badge" id="ct-badge-${id}">CT: 0.0 วิ (0.00 น.)</div>
+                        <div class="node-ct-badge" id="ct-badge-${node.id}">CT: 0.0 วิ (0.00 น.)</div>
                     </div>
                 `;
             }
 
             innerHTML += `
                 </div>
-                ${isShelf ? '' : `<div class="node-input" id="input-port-${id}" data-node-id="${id}"></div>`}
-                <div class="node-output" id="output-port-${id}" data-node-id="${id}"></div>
+                ${node.isShelf ? '' : `<div class="node-input" id="input-port-${node.id}" data-node-id="${node.id}"></div>`}
+                <div class="node-output" id="output-port-${node.id}" data-node-id="${node.id}"></div>
             `;
 
             nodeEl.innerHTML = innerHTML;
             canvas.appendChild(nodeEl);
 
-            // บันทึกสถานะพนักงาน (เวลาถูกบันทึกและประมวลผลตรงๆ เป็น "วินาที")
-            nodesData.push({
-                id: id,
-                name: name,
-                isShelf: isShelf,
-                workers: workerTimes.map((sec, idx) => ({ id: Date.now() + Math.random(), name: `คนงาน ${idx+1}`, time: sec }))
-            });
-
-            // ผูกระบบจัดย้ายตำแหน่งการ์ด (เฉพาะโหมดแก้ไข)
+            // ระบบลากการ์ดขั้นตอนย้ายพิกัด
             const headerEl = nodeEl.querySelector('.node-header');
             headerEl.addEventListener('pointerdown', (e) => {
                 if (appMode !== 'edit' || e.target.tagName === 'BUTTON') return;
                 e.stopPropagation();
                 
-                draggingNodeId = id;
+                draggingNodeId = node.id;
                 nodeEl.classList.add('moving');
                 nodeEl.style.zIndex = 999;
 
@@ -711,7 +766,7 @@
                 nodeDragOffsetY = (e.clientY - rect.top) / canvasScale;
             });
 
-            // ระบบแตะเลือกจุดเพื่อสร้างเส้นเชื่อมโยง (ไม่ต้องลากนิ้วค้าง)
+            // ระบบแตะเลือกพอร์ตเพื่อสร้างเส้น (ไม่ต้องลากนิ้วค้าง)
             const outputPort = nodeEl.querySelector('.node-output');
             outputPort.addEventListener('pointerdown', (e) => {
                 e.stopPropagation();
@@ -719,26 +774,24 @@
                     alert("⚠️ โปรดเปลี่ยนเป็น '🛠️ โหมดแก้ไข/ต่อเส้น' ที่ด้านบนก่อนเชื่อมกระบวนงาน");
                     return;
                 }
-                
                 if (selectedSourcePortNodeId) {
                     const oldPort = document.getElementById(`output-port-${selectedSourcePortNodeId}`);
                     if (oldPort) oldPort.classList.remove('port-selected-source');
                 }
-
-                selectedSourcePortNodeId = id;
+                selectedSourcePortNodeId = node.id;
                 outputPort.classList.add('port-selected-source');
             });
 
-            if (!isShelf) {
+            if (!node.isShelf) {
                 const inputPort = nodeEl.querySelector('.node-input');
                 inputPort.addEventListener('pointerdown', (e) => {
                     e.stopPropagation();
                     if (appMode !== 'edit') return;
                     
-                    if (selectedSourcePortNodeId && selectedSourcePortNodeId !== id) {
-                        const exists = connections.some(c => c.from === selectedSourcePortNodeId && c.to === id);
+                    if (selectedSourcePortNodeId && selectedSourcePortNodeId !== node.id) {
+                        const exists = connections.some(c => c.from === selectedSourcePortNodeId && c.to === node.id);
                         if (!exists) {
-                            connections.push({ from: selectedSourcePortNodeId, to: id });
+                            connections.push({ from: selectedSourcePortNodeId, to: node.id });
                         }
                         
                         const srcPort = document.getElementById(`output-port-${selectedSourcePortNodeId}`);
@@ -748,7 +801,7 @@
                         runBlueprintBalancing();
                     }
                 });
-                renderWorkersUI(id);
+                renderWorkersUI(node.id);
             }
         }
 
@@ -824,7 +877,6 @@
             runBlueprintBalancing();
         }
 
-        // คำนวณขีดความสามารถสถานี (ป้อนเป็นวินาที แปลงผลลัพธ์เป็นนาทีเพื่อเช็ค Balance)
         function calculateLocalStationCT(nodeId) {
             const nodeData = nodesData.find(n => n.id === nodeId);
             if (!nodeData || nodeData.isShelf) return 0;
@@ -834,7 +886,6 @@
                 if (w.time > 0) sumCapacityPerSecond += (1 / w.time);
             });
 
-            // ค่า CT จริงของจุดประมวลผล (หน่วย: วินาที)
             const effectiveCTSeconds = sumCapacityPerSecond > 0 ? (1 / sumCapacityPerSecond) : 0;
             const effectiveCTMinutes = effectiveCTSeconds / 60;
 
@@ -843,10 +894,10 @@
                 badge.innerText = `CT: ${effectiveCTSeconds.toFixed(1)} วิ (${effectiveCTMinutes.toFixed(2)} น.)`;
             }
 
-            return effectiveCTMinutes; // ส่งคืนค่านำไปคำนวณโครงสร้างสายผลิตหลัก
+            return effectiveCTMinutes; 
         }
 
-        // --- 🛠️ วาดเส้นเชื่อมโยงกระบวนการผลิต ---
+        // --- วาดเส้นเชื่อมโยงกระบวนการผลิต ---
         function renderAllWires() {
             svgLayer.innerHTML = '';
             connections.forEach(conn => {
@@ -881,13 +932,11 @@
             });
         }
 
-        // --- 📱 ระบบจัดการสัมผัสหน้าจอแบบลื่นไหลและเสถียรพิเศษ (Super-Smooth Pointer Handling) ---
+        // --- ระบบควบคุมหน้าจอสัมผัสลื่นไหลเป็นพิเศษ (Pointer Engine) ---
         canvasWrapper.addEventListener('pointerdown', (e) => {
-            // เลี่ยงผลกระทบถ้าคลิกโดนแผงหรือปุ่มควบคุมภายนอก
             if (e.target.closest('header') || e.target.closest('#analysis-panel') || e.target.closest('.view-controls') || e.target.closest('.node-content')) return;
 
             if (appMode === 'pan' || (!draggingNodeId && e.target === canvasWrapper || e.target === canvas || e.target === svgLayer)) {
-                // เริ่มต้นเปิดโหมดกวาดเลื่อนหน้าจอฉากหลัง (Smooth Canvas Panning)
                 isPanning = true;
                 startX = e.clientX - panX;
                 startY = e.clientY - panY;
@@ -897,7 +946,6 @@
 
         canvasWrapper.addEventListener('pointermove', (e) => {
             if (draggingNodeId && appMode === 'edit') {
-                // จัดการขยับการ์ดตามพิกัดนิ้วลาก
                 const nodeEl = document.getElementById(draggingNodeId);
                 if (nodeEl) {
                     const rect = canvas.getBoundingClientRect();
@@ -909,10 +957,16 @@
 
                     nodeEl.style.left = x + 'px';
                     nodeEl.style.top = y + 'px';
+
+                    // บันทึกตำแหน่งลงใน Model ข้อมูลแบบ Real-time
+                    const nData = nodesData.find(n => n.id === draggingNodeId);
+                    if (nData) {
+                        nData.x = x;
+                        nData.y = y;
+                    }
                     renderAllWires();
                 }
             } else if (isPanning) {
-                // ประมวลผลเลื่อนตำแหน่งหน้ากระดาน
                 panX = e.clientX - startX;
                 panY = e.clientY - startY;
                 updateCanvasTransform();
@@ -924,19 +978,20 @@
                 const nodeEl = document.getElementById(draggingNodeId);
                 if (nodeEl) nodeEl.classList.remove('moving');
                 draggingNodeId = null;
+                saveBlueprintState(); // เซฟตำแหน่งเมื่อลากการ์ดเสร็จ
             }
             if (isPanning) {
                 isPanning = false;
                 canvasWrapper.releasePointerCapture(e.pointerId);
+                saveBlueprintState(); // เซฟตำแหน่งหน้าจอเมื่อแพนหน้าจอเสร็จ
             }
         });
 
         function updateCanvasTransform() {
-            // ใช้ translate3d ร่วมกับ scale เพื่อสั่งงานระดับฮาร์ดแวร์ GPU ให้เฟรมเรตไหลลื่น ไม่หน่วงมือ
             canvas.style.transform = `translate3d(${panX}px, ${panY}px, 0) scale(${canvasScale})`;
         }
 
-        // --- 🤖 กลไกสมองกลคำนวณสายผลิตเสื้อผ้า (Line Balancing Core Engine) ---
+        // --- กลไกคำนวณประสิทธิภาพสายผลิตหลัก ---
         function runBlueprintBalancing() {
             let visited = new Set();
             let queue = ["shelf-start"];
@@ -963,6 +1018,7 @@
                 document.getElementById('kpi-balance-eff').innerText = "0.0%";
                 document.getElementById('kpi-leadtime').innerText = "0.00 นาที";
                 document.getElementById('kpi-output').innerText = "0 ตัว / วัน";
+                saveBlueprintState();
                 return;
             }
 
@@ -975,13 +1031,11 @@
                 const nodeData = nodesData.find(n => n.id === id);
                 if (!nodeData) return;
 
-                // รวมเวลาช่างทุกคนประจำจุดเพื่อแปลงกลับเป็น SAM นาทีเฉลี่ยสำหรับตรวจสอบประสิทธิภาพโครงสร้างหลัก
                 let nodeSumSeconds = 0;
                 nodeData.workers.forEach(w => { nodeSumSeconds += w.time; });
                 const avgNodeSAMMinutes = nodeData.workers.length > 0 ? ((nodeSumSeconds / nodeData.workers.length) / 60) : 0;
                 totalSAMInFlow += avgNodeSAMMinutes;
 
-                // เช็คความเร็วคอขวดสูงสุด (หน่วย: นาที)
                 const currentStationCTMinutes = calculateLocalStationCT(id);
                 if (currentStationCTMinutes > maxStationCTMinutes) {
                     maxStationCTMinutes = currentStationCTMinutes;
@@ -1010,11 +1064,14 @@
             document.getElementById('kpi-balance-eff').innerText = `${balancingEfficiency.toFixed(1)}%`;
             document.getElementById('kpi-leadtime').innerText = `${(totalSAMInFlow).toFixed(2)} นาที`;
             document.getElementById('kpi-output').innerText = `${potentialDailyOutput.toLocaleString()} ตัว/วัน`;
+
+            saveBlueprintState(); // เซฟข้อมูลค่าตัวเลขและเส้นเชื่อมโยงทุกครั้งที่มีการอัปเดตคำนวณ
         }
 
         function resetToDefaultWorkflow() {
-            if(confirm("ต้องการรีเซ็ตบอร์ด จัดเรียงผังและล้างเส้นทั้งหมดสำหรับมือถือใหม่ใช่ไหม?")) {
-                initBlueprintWorkflow();
+            if(confirm("ต้องการรีเซ็ตบอร์ด จัดเรียงผังและล้างเส้นทั้งหมดใช่ไหม? ข้อมูลช่างเย็บและเวลาที่บันทึกไว้ในเครื่องจะถูกลบออกทั้งหมด")) {
+                localStorage.removeItem(STORAGE_KEY);
+                initBlueprintWorkflow(true);
                 setAppMode('pan');
             }
         }
